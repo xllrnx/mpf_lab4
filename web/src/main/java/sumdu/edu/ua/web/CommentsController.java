@@ -1,8 +1,6 @@
 package sumdu.edu.ua.web;
 
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import io.javalin.Javalin;
 import sumdu.edu.ua.core.domain.Book;
 import sumdu.edu.ua.core.domain.Comment;
 import sumdu.edu.ua.core.domain.PageRequest;
@@ -11,53 +9,59 @@ import sumdu.edu.ua.core.port.CommentRepositoryPort;
 import sumdu.edu.ua.core.service.CommentService;
 
 import java.util.List;
+import java.util.Map;
 
-@Controller
-@RequestMapping("/comments")
 public class CommentsController {
 
     private final CommentRepositoryPort commentRepo;
     private final CatalogRepositoryPort bookRepo;
     private final CommentService commentService;
 
-    public CommentsController(CommentRepositoryPort commentRepo,
-                              CatalogRepositoryPort bookRepo,
-                              CommentService commentService) {
+    public CommentsController(CommentRepositoryPort commentRepo, CatalogRepositoryPort bookRepo) {
         this.commentRepo = commentRepo;
         this.bookRepo = bookRepo;
-        this.commentService = commentService;
+        this.commentService = new CommentService(commentRepo);
     }
 
-    @GetMapping
-    public String list(@RequestParam long bookId, Model model) {
-        Book book = bookRepo.findById(bookId);
-        List<Comment> comments = commentRepo.list(bookId, null, null, new PageRequest(0, 20, "id")).getItems();
+    public void registerRoutes(Javalin app) {
 
-        model.addAttribute("book", book);
-        model.addAttribute("comments", comments);
-        return "book-comments";
-    }
+        // GET /comments — перегляд коментарів до книги
+        app.get("/comments", ctx -> {
+            long bookId = ctx.queryParamAsClass("bookId", Long.class).get();
 
-    @PostMapping
-    public String add(@RequestParam long bookId,
-                      @RequestParam(required = false) String author,
-                      @RequestParam String text) {
-        commentService.add(bookId, author, text);
-        return "redirect:/comments?bookId=" + bookId;
-    }
+            Book book = bookRepo.findById(bookId);
+            List<Comment> comments = commentRepo.list(bookId, null, null, new PageRequest(0, 20, "id")).getItems();
 
-    @PostMapping("/delete")
-    public String delete(@RequestParam long bookId,
-                         @RequestParam long commentId) {
+            ctx.render("book-comments.jsp", Map.of(
+                    "book", book,
+                    "comments", comments
+            ));
+        });
 
-        Comment comment = commentRepo.list(bookId, null, null, new PageRequest(0, 100, "id"))
-                .getItems().stream()
-                .filter(c -> c.getId() == commentId)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Коментар не знайдено"));
+        // POST /comments — додавання нового коментаря (через форму)
+        app.post("/comments", ctx -> {
+            long bookId = ctx.formParamAsClass("bookId", Long.class).get();
+            String author = ctx.formParam("author");
+            String text = ctx.formParam("text");
 
-        commentService.delete(bookId, commentId, comment.getCreatedAt());
+            commentService.add(bookId, author, text);
 
-        return "redirect:/comments?bookId=" + bookId;
+            ctx.redirect("/comments?bookId=" + bookId);
+        });
+
+        // POST /comments/delete — видалення коментаря
+        app.post("/comments/delete", ctx -> {
+            long bookId = ctx.formParamAsClass("bookId", Long.class).get();
+            long commentId = ctx.formParamAsClass("commentId", Long.class).get();
+            Comment comment = commentRepo.list(bookId, null, null, new PageRequest(0, 100, "id"))
+                    .getItems().stream()
+                    .filter(c -> c.getId() == commentId)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Коментар не знайдено"));
+
+            commentService.delete(bookId, commentId, comment.getCreatedAt());
+
+            ctx.redirect("/comments?bookId=" + bookId);
+        });
     }
 }

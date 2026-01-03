@@ -5,6 +5,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 
 @AnalyzeClasses(packages = "sumdu.edu.ua")
 public class WebArchitectureTest {
@@ -16,9 +17,13 @@ public class WebArchitectureTest {
             .allowEmptyShould(true);
 
     @ArchTest
-    public static final ArchRule controllersShouldBeAnnotated = classes()
-            .that().haveSimpleNameEndingWith("Controller")
-            .should().beAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
-            .orShould().beAnnotatedWith(org.springframework.stereotype.Controller.class)
+    public static final ArchRule webLayerDependencies = layeredArchitecture()
+            .consideringOnlyDependenciesInAnyPackage("sumdu.edu.ua..")
+            .layer("Web").definedBy("..web..")
+            .layer("Core").definedBy("..core..")
+            .layer("Persistence").definedBy("..persistence..")
+            .layer("Infrastructure").definedBy("..infrastructure..")
+            .whereLayer("Web").mayOnlyAccessLayers("Core", "Infrastructure")
+            .whereLayer("Infrastructure").mayOnlyAccessLayers("Core", "Persistence")
             .allowEmptyShould(true);
 }
