@@ -1,11 +1,13 @@
 package sumdu.edu.ua.web.error;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 
@@ -44,5 +46,13 @@ public class GlobalExceptionHandler {
                         "message", e.getMessage(),
                         "status", 500
                 ));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
+        if ("favicon.ico".equals(ex.getResourcePath())) {
+            return;
+        }
+        log.warn("Resource not found: {}", ex.getResourcePath());
     }
 }

@@ -20,43 +20,56 @@ public class CommentsController {
     private final CatalogRepositoryPort bookRepo;
     private final CommentService commentService;
 
-    public CommentsController(CommentRepositoryPort commentRepo,
-                              CatalogRepositoryPort bookRepo,
-                              CommentService commentService) {
+    public CommentsController(CommentRepositoryPort commentRepo, CatalogRepositoryPort bookRepo) {
         this.commentRepo = commentRepo;
         this.bookRepo = bookRepo;
-        this.commentService = commentService;
+        this.commentService = new CommentService(commentRepo);
     }
 
+    // GET /comments — перегляд коментарів до книги
     @GetMapping
-    public String list(@RequestParam long bookId, Model model) {
+    public String list(@RequestParam("bookId") long bookId, Model model) {
         Book book = bookRepo.findById(bookId);
-        List<Comment> comments = commentRepo.list(bookId, null, null, new PageRequest(0, 20, "id")).getItems();
+
+        if (book == null) {
+            return "redirect:/books";
+        }
+
+        List<Comment> comments = commentRepo
+                .list(bookId, null, null, new PageRequest(0, 100, "id"))
+                .getItems();
 
         model.addAttribute("book", book);
         model.addAttribute("comments", comments);
-        return "book-comments";
+
+        return "book-comments"; // Відкриває templates/book-comments.html
     }
 
+    // POST /comments — додавання нового коментаря
     @PostMapping
-    public String add(@RequestParam long bookId,
-                      @RequestParam(required = false) String author,
-                      @RequestParam String text) {
-        commentService.add(bookId, author, text);
+    public String add(@RequestParam("bookId") long bookId,
+                      @RequestParam("author") String author,
+                      @RequestParam("text") String text) {
+
+        commentService.add(bookId, author.trim(), text.trim());
+
         return "redirect:/comments?bookId=" + bookId;
     }
 
+    // POST /comments/delete — видалення коментаря
     @PostMapping("/delete")
-    public String delete(@RequestParam long bookId,
-                         @RequestParam long commentId) {
+    public String delete(@RequestParam("bookId") long bookId,
+                         @RequestParam("commentId") long commentId) {
 
         Comment comment = commentRepo.list(bookId, null, null, new PageRequest(0, 100, "id"))
                 .getItems().stream()
                 .filter(c -> c.getId() == commentId)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Коментар не знайдено"));
+                .orElse(null);
 
-        commentService.delete(bookId, commentId, comment.getCreatedAt());
+        if (comment != null) {
+            commentService.delete(bookId, commentId, comment.getCreatedAt());
+        }
 
         return "redirect:/comments?bookId=" + bookId;
     }
