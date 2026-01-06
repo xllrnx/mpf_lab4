@@ -1,8 +1,14 @@
-FROM eclipse-temurin:21-jdk-alpine
-
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
 
-COPY web/target/web-*.jar app.jar
+COPY . .
+
+RUN mvn clean package -pl web -am -DskipTests
+
+FROM eclipse-temurin:21-jdk-alpine
+WORKDIR /app
+
+COPY --from=build /app/web/target/web-*.jar app.jar
 
 EXPOSE 8080
 
